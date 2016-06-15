@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:p="http://www.springframework.org/schema/p"
+	xmlns:context="http://www.springframework.org/schema/context"
+	xmlns:jee="http://www.springframework.org/schema/jee" xmlns:tx="http://www.springframework.org/schema/tx"
+	xmlns:aop="http://www.springframework.org/schema/aop" xmlns:cache="http://www.springframework.org/schema/cache"
+	xsi:schemaLocation="
+			http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd
+			http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context.xsd
+			 http://www.springframework.org/schema/cache
+        http://www.springframework.org/schema/cache/spring-cache.xsd
+			">
+
+	<!-- Spring自动将该包目录下标记为@Service的所有类作为spring的Bean -->
+	<context:property-placeholder location="classpath:redis-cluster.properties" />
+	<!-- <import resource="jdbc.properties"/> -->
+
+	<context:component-scan base-package="com.feng">
+		<context:exclude-filter type="annotation"
+			expression="org.springframework.stereotype.Controller" />
+	</context:component-scan>
+	<import resource="spring-hibernate.xml" />
+
+
+
+	<!-- 启用缓存注解功能，这个是必须的，否则注解不会生效，另外，该注解一定要声明在spring主配置文件中才会生效 -->
+	<cache:annotation-driven cache-manager="cacheManager" />
+	<!-- 自定义key生成器 -->
+	<!-- <bean id="myKeyGenerator" class="com.feng.redis.MyKeyGenerator"></bean> -->
+	<!-- spring自己的换管理器，这里定义了两个缓存位置名称 ，既注解中的value -->
+	<bean id="cacheManager" class="org.springframework.cache.support.SimpleCacheManager">
+		<property name="caches">
+			<set>
+				<bean class="com.feng.redis.RedisCache">
+					<property name="redisTemplate" ref="redisTemplate" />
+					<property name="name" value="redis1" />
+				</bean>
+				<!-- <bean class="com.feng.redis.RedisCache"> <property name="redisTemplate" 
+					ref="redisTemplate2" /> <property name="name" value="redis2"/> </bean> -->
+			</set>
+		</property>
+	</bean>
+
+
+	<bean id="poolConfig" class="redis.clients.jedis.JedisPoolConfig">
+		<property name="maxTotal" value="${im.hs.server.redis.maxTotal}" />
+		<property name="minIdle" value="${im.hs.server.redis.minIdle}" />
+		<property name="maxWaitMillis" value="${im.hs.server.redis.maxWaitTime}" />
+		<property name="maxIdle" value="${im.hs.server.redis.maxIdle}" />
+		<property name="testOnBorrow" value="${im.hs.server.redis.testOnBorrow}" />
+		<property name="testOnReturn" value="true" />
+		<property name="testWhileIdle" value="true" />
+	</bean>
+
+	<bean id="sentinelConfiguration"
+		class="org.springframework.data.redis.connection.RedisSentinelConfiguration">
+		<property name="master">
+			<bean class="org.springframework.data.redis.connection.RedisNode">
+				<property name="name" value="${im.hs.server.redis.sentinel.masterName}"></property>
+			</bean>
+		</property>
+		<property name="sentinels">
+			<set>
+				<bean class="org.springframework.data.redis.connection.RedisNode">
+					<constructor-arg name="host"
+						value="${im.hs.server.redis.sentinel1.host}"></constructor-arg>
+					<constructor-arg name="port"
+						value="${im.hs.server.redis.sentinel1.port}"></constructor-arg>
+				</bean>
+				<bean class="org.springframework.data.redis.connection.RedisNode">
+					<constructor-arg name="host"
+						value="${im.hs.server.redis.sentinel2.host}"></constructor-arg>
+					<constructor-arg name="port"
+						value="${im.hs.server.redis.sentinel2.port}"></constructor-arg>
+				</bean>
+				<bean class="org.springframework.data.redis.connection.RedisNode">
+					<constructor-arg name="host"
+						value="${im.hs.server.redis.sentinel3.host}"></constructor-arg>
+					<constructor-arg name="port"
+						value="${im.hs.server.redis.sentinel3.port}"></constructor-arg>
+				</bean>
+			</set>
+		</property>
+	</bean>
+
+	<bean id="connectionFactory"
+		class="org.springframework.data.redis.connection.jedis.JedisConnectionFactory"
+		p:password="${im.hs.server.redis.sentinel.password}">
+		<constructor-arg name="sentinelConfig" ref="sentinelConfiguration"></constructor-arg>
+		<constructor-arg name="poolConfig" ref="poolConfig"></constructor-arg>
+	</bean>
+
+	<bean id="redisTemplate" class="org.springframework.data.redis.core.RedisTemplate">
+		<property name="connectionFactory" ref="connectionFactory" />
+		<property name="keySerializer">
+			<bean
+				class="org.springframework.data.redis.serializer.StringRedisSerializer" />
+		</property>
+		<property name="valueSerializer">
+			<bean
+				class="org.springframework.data.redis.serializer.StringRedisSerializer" />
+		</property>
+		<property name="hashKeySerializer">
+			<bean
+				class="org.springframework.data.redis.serializer.StringRedisSerializer" />
+		</property>
+		<property name="hashValueSerializer">
+			<bean
+				class="org.springframework.data.redis.serializer.StringRedisSerializer" />
+		</property>
+	</bean>
+
+	<bean id="stringRedisTemplate" class="org.springframework.data.redis.core.StringRedisTemplate">
+		<property name="connectionFactory" ref="connectionFactory" />
+	</bean>
+</beans>
